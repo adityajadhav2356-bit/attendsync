@@ -4,6 +4,7 @@ import { LogIn, User, Users, GraduationCap, Briefcase, FileText } from "lucide-r
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { createClient } from "@/utils/supabase/client";
 
 const ROLES = [
   { id: "student", label: "Student", icon: User },
@@ -16,23 +17,49 @@ const ROLES = [
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
   const [selectedRole, setSelectedRole] = useState("student");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     let targetRoute = "/student"; 
     if (selectedRole === "gfm") targetRoute = "/gfm/batch";
     else if (selectedRole === "faculty") targetRoute = "/faculty";
-    else if (selectedRole === "dac") targetRoute = "/dac";
-    else if (selectedRole === "hod") targetRoute = "/hod";
+    else if (selectedRole === "dac") targetRoute = "/dac/analytics";
+    else if (selectedRole === "hod") targetRoute = "/hod/analytics";
 
-    setTimeout(() => {
-      router.push(targetRoute);
-    }, 1500);
+    if (isSignUp) {
+      // Execute E2E Registration
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { role: selectedRole, name: email.split('@')[0] } }
+      });
+      if (error) {
+        alert("Registration Failed: " + error.message);
+        setLoading(false);
+        return;
+      }
+    } else {
+      // Execute E2E Login
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      if (error) {
+        alert("Sign In Failed: " + error.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Success! Secure JWT Cookies are natively set by the SSR Browser Client. Route them.
+    router.push(targetRoute);
   };
 
   return (
@@ -70,7 +97,7 @@ export default function LoginPage() {
            </div>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleAuth} className="space-y-5">
           <div>
              <label className="text-sm font-semibold text-slate-700 block mb-1">Email address</label>
              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/80 border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all shadow-sm font-medium" placeholder={`user@${selectedRole}.edu`} />
@@ -81,9 +108,15 @@ export default function LoginPage() {
           </div>
 
           <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-md flex items-center justify-center gap-2 group">
-            {loading ? "Authenticating..." : <><LogIn className="w-5 h-5 transition-transform"/> Sign In</>}
+            {loading ? "Authenticating..." : <><LogIn className="w-5 h-5 transition-transform"/> {isSignUp ? "Create Secure Account" : "Sign In"}</>}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+           <button onClick={() => setIsSignUp(!isSignUp)} type="button" className="text-sm font-semibold text-slate-500 hover:text-indigo-600 transition">
+              {isSignUp ? "Already have an account? Log In" : "Need a test account? Sign Up Here"}
+           </button>
+        </div>
 
       </div>
     </div>
